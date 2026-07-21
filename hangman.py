@@ -1,162 +1,523 @@
-# assignment: Hangman
-# author: Debi Majumdar
-# date: 1/22/2023
-# file: hangman.py is a program that allows one to play the game Hangman
-# input: No file input @ command time (Scripts will collect and parse user input via prompts to get settings and guesses)
-# output: (Terminal output to show status of game and prompts to play the game)
+#!/usr/bin/env python3
 
+"""
+Python Hangman
+
+A colorful terminal-based version of the classic Hangman game.
+
+Author: Debi Majumdar
+"""
+
+from pathlib import Path
 from random import choice
+from typing import Final
 
-dictionary_file = "dictionary-short.txt"  # make a dictionary.txt in the same folder where hangman.py is located
+
+# ANSI terminal colors
+RESET: Final = "\033[0m"
+BOLD: Final = "\033[1m"
+RED: Final = "\033[91m"
+GREEN: Final = "\033[92m"
+YELLOW: Final = "\033[93m"
+BLUE: Final = "\033[94m"
+MAGENTA: Final = "\033[95m"
+CYAN: Final = "\033[96m"
 
 
-# make a dictionary from a dictionary file ('dictionary.txt', see above)
-# dictionary keys are word sizes (1, 2, 3, 4, …, 12), and values are lists of words
-# for example, dictionary = { 2 : ['Ms', 'ad'], 3 : ['cat', 'dog', 'sun'] }
-# if a word has the size more than 12 letters, put it into the list with the key equal to 12
+HANGMAN_STAGES: Final = [
+    """
+       +---+
+       |   |
+           |
+           |
+           |
+           |
+    =========
+    """,
+    """
+       +---+
+       |   |
+       O   |
+           |
+           |
+           |
+    =========
+    """,
+    """
+       +---+
+       |   |
+       O   |
+       |   |
+           |
+           |
+    =========
+    """,
+    """
+       +---+
+       |   |
+       O   |
+      /|   |
+           |
+           |
+    =========
+    """,
+    """
+       +---+
+       |   |
+       O   |
+      /|\\  |
+           |
+           |
+    =========
+    """,
+    """
+       +---+
+       |   |
+       O   |
+      /|\\  |
+      /    |
+           |
+    =========
+    """,
+    """
+       +---+
+       |   |
+       O   |
+      /|\\  |
+      / \\  |
+           |
+    =========
+    """,
+]
 
-def import_dictionary(filename):
-    dictionary = {Lenlist: [] for Lenlist in range(1, 13)}
+
+BUILT_IN_WORDS: Final = {
+    "easy": [
+        "apple",
+        "beach",
+        "cloud",
+        "dance",
+        "dream",
+        "flame",
+        "grape",
+        "house",
+        "music",
+        "ocean",
+        "panda",
+        "plant",
+        "smile",
+        "tiger",
+        "water",
+    ],
+    "medium": [
+        "adventure",
+        "butterfly",
+        "computer",
+        "dinosaur",
+        "elephant",
+        "festival",
+        "galaxy",
+        "hospital",
+        "keyboard",
+        "mountain",
+        "penguin",
+        "rainbow",
+        "sandwich",
+        "telescope",
+    ],
+    "hard": [
+        "archaeology",
+        "biodiversity",
+        "cryptography",
+        "electromagnetic",
+        "extraordinary",
+        "photosynthesis",
+        "quintessential",
+        "revolutionary",
+        "subterranean",
+        "transformation",
+    ],
+}
+
+
+DIFFICULTIES: Final = {
+    "1": ("easy", 8),
+    "2": ("medium", 6),
+    "3": ("hard", 5),
+}
+
+
+def clear_screen() -> None:
+    """Clear the terminal using ANSI escape codes."""
+
+    print("\033[2J\033[H", end="")
+
+
+def print_title() -> None:
+    """Display the game title."""
+
+    print(
+        f"""{CYAN}{BOLD}
+╔══════════════════════════════════╗
+║          PYTHON HANGMAN          ║
+╚══════════════════════════════════╝
+{RESET}"""
+    )
+
+
+def normalize_word(word: str) -> str:
+    """Return a cleaned lowercase word containing letters or hyphens."""
+
+    return "".join(
+        character.lower()
+        for character in word.strip()
+        if character.isalpha() or character == "-"
+    )
+
+
+def load_external_words(filename: str = "dictionary-short.txt") -> list[str]:
+    """
+    Load valid words from an optional local dictionary file.
+
+    The built-in word collection is used when the file does not exist.
+    """
+
+    path = Path(filename)
+
+    if not path.exists():
+        return []
+
     try:
-        f = open(filename, "r")
-        max_size = 12
-        for line in f:
-            word = line.strip()
-            word_length = len(word)
-            if word_length > 0:
-                if word_length < max_size:
-                    dictionary[word_length].append(word)
-                else:
-                    dictionary[max_size].append(word)
-        # categorize dictionary keys
-        return dictionary
-    except Exception as e:
-        print(e)
+        words = {
+            normalize_word(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+        }
+
+        return sorted(
+            word
+            for word in words
+            if len(word.replace("-", "")) >= 3
+        )
+    except OSError:
+        return []
 
 
-# print the dictionary (use only for debugging)
-def print_dictionary(dictionary):
-    pass
+def words_for_difficulty(difficulty: str) -> list[str]:
+    """Return suitable words for the selected difficulty."""
+
+    external_words = load_external_words()
+
+    if difficulty == "easy":
+        filtered = [
+            word
+            for word in external_words
+            if 3 <= len(word.replace("-", "")) <= 6
+        ]
+    elif difficulty == "medium":
+        filtered = [
+            word
+            for word in external_words
+            if 7 <= len(word.replace("-", "")) <= 9
+        ]
+    else:
+        filtered = [
+            word
+            for word in external_words
+            if len(word.replace("-", "")) >= 10
+        ]
+
+    return filtered or BUILT_IN_WORDS[difficulty]
 
 
+def choose_difficulty() -> tuple[str, int]:
+    """Prompt the player to select a difficulty."""
 
-def get_game_options():
-    print('Please choose a size of a word to be guessed [3 - 12, default any size]:')
-    user_input_size = input()
-    print('The word size is set to ' + user_input_size + '.')
-    if (user_input_size.strip().isdigit()):
-        size = int(user_input_size)
-        # invalid range then throw error
-        if (size not in range(1, 12)):
-            pass
-    print('Please choose a number of lives [1 - 10, default 5]:')
-    user_input_lives = None
-    lives = 5
-    while user_input_lives is None:
-        user_input_lives = input()
-        if (user_input_lives.strip().isdigit()):
-            lives = int(user_input_lives)
-            # invalid range then throw error
-            if (lives not in range(1, 12)):
-                pass
-    print('You have ' + str(lives) + ' lives.')
-    return (size, lives)
+    print(f"{BOLD}Choose a difficulty:{RESET}")
+    print(f"  {GREEN}1. Easy{RESET}   — shorter words, 8 lives")
+    print(f"  {YELLOW}2. Medium{RESET} — medium words, 6 lives")
+    print(f"  {RED}3. Hard{RESET}   — longer words, 5 lives")
+
+    while True:
+        selection = input(f"\n{CYAN}> {RESET}").strip()
+
+        if selection in DIFFICULTIES:
+            return DIFFICULTIES[selection]
+
+        print(f"{RED}Please enter 1, 2, or 3.{RESET}")
 
 
-def uppercase(letter):
-    return letter.capitalize()
+def display_word(word: str, guessed_letters: set[str]) -> str:
+    """Return the partially revealed word."""
 
+    characters = []
 
-def lowercase(letter):
-    return letter.lower()
-
-
-def print_status(lives_remaining, letters_used, word, num_lives):
-    lives_status = ''
-    for i in range(num_lives - lives_remaining):
-        lives_status += 'X'
-    for i in range(lives_remaining):
-        lives_status += 'O'
-    print('Letters chosen:', end=' ')
-    formatted_letters_used = list(map(uppercase, letters_used))
-    print(*formatted_letters_used, sep=', ')
-    letters_status = ''
-    for letter in word.lower():
-        if letter in list(map(lowercase, letters_used)) or letter == '-':
-            letters_status += letter.capitalize()
+    for character in word:
+        if character == "-":
+            characters.append("-")
+        elif character in guessed_letters:
+            characters.append(character.upper())
         else:
-            letters_status += '__'
-        letters_status += ' '
+            characters.append("_")
 
-    print('{} lives: {} {}'.format(letters_status, lives_remaining, lives_status))
-
-
-# MAIN
-
-if __name__ == '__main__':
-    # make a dictionary from a dictionary file
-    dictionary = import_dictionary(dictionary_file)
-
-    # print the dictionary (use only for debugging)
-
-    # print a game introduction
-    print('Welcome to the Hangman Game!')
-    # START MAIN LOOP (OUTER PROGRAM LOOP)
-    play = True
-    while play:
-        # set up game options (the word size and number of lives)
-        word_size, num_lives = get_game_options()
+    return " ".join(characters)
 
 
-        possible_words = dictionary[word_size]
-        word = choice(possible_words)
-        display_word = word
-        # Adjust for dashes in words like T-shirt or Self-Esteem
-        word.replace('-', '.')
-        letters_chosen = []
-        lives_remaining = num_lives
-        print_status(lives_remaining, letters_chosen, display_word, num_lives)
-        # START GAME LOOP   (INNER PROGRAM LOOP)
-        while lives_remaining > 0:
+def is_word_complete(word: str, guessed_letters: set[str]) -> bool:
+    """Return whether every letter in the word has been guessed."""
 
-            guess = ''
-            # collect input until valid
-            while len(guess) != 1 or not guess.isalpha() or guess in letters_chosen:
-                print('Please choose a new letter >')
-                guess = input()
-                # if the letter is correct update the hidden word,
-                # else update the number of lives
-                # and print interactive messages
-                if guess is not None:
-                    if guess in letters_chosen:
-                        print('You have already chosen this letter.')
-            # Valid one letter alphabetic input then ->
-            if guess not in word:
-                lives_remaining -= 1
-                print('You guessed wrong, you lost one life.')
+    return all(
+        character == "-" or character in guessed_letters
+        for character in word
+    )
+
+
+def available_hint_letters(
+    word: str,
+    guessed_letters: set[str],
+) -> list[str]:
+    """Return unguessed letters that appear in the word."""
+
+    return sorted(
+        {
+            character
+            for character in word
+            if character.isalpha() and character not in guessed_letters
+        }
+    )
+
+
+def print_game_status(
+    word: str,
+    guessed_letters: set[str],
+    wrong_guesses: set[str],
+    lives_remaining: int,
+    max_lives: int,
+    difficulty: str,
+) -> None:
+    """Display the current game state."""
+
+    stage_index = min(max_lives - lives_remaining, len(HANGMAN_STAGES) - 1)
+
+    print(f"{MAGENTA}{HANGMAN_STAGES[stage_index]}{RESET}")
+    print(f"{BOLD}Difficulty:{RESET} {difficulty.title()}")
+    print(f"{BOLD}Word:{RESET} {CYAN}{display_word(word, guessed_letters)}{RESET}")
+    print(
+        f"{BOLD}Lives:{RESET} "
+        f"{GREEN if lives_remaining > 2 else RED}"
+        f"{'♥ ' * lives_remaining}{RESET}"
+    )
+
+    if wrong_guesses:
+        print(
+            f"{BOLD}Incorrect guesses:{RESET} "
+            f"{RED}{', '.join(sorted(letter.upper() for letter in wrong_guesses))}"
+            f"{RESET}"
+        )
+    else:
+        print(f"{BOLD}Incorrect guesses:{RESET} None")
+
+    print(
+        f"\nEnter a {BOLD}letter{RESET}, the {BOLD}full word{RESET}, "
+        f"or type {YELLOW}hint{RESET}."
+    )
+
+
+def get_guess(
+    guessed_letters: set[str],
+    word: str,
+) -> tuple[str, str]:
+    """
+    Collect and validate the player's guess.
+
+    Returns a tuple containing the guess type and value.
+    """
+
+    while True:
+        guess = input(f"{CYAN}> {RESET}").strip().lower()
+
+        if not guess:
+            print(f"{RED}Please enter a guess.{RESET}")
+            continue
+
+        if guess == "hint":
+            return "hint", guess
+
+        normalized_guess = normalize_word(guess)
+
+        if len(normalized_guess) == 1:
+            if normalized_guess in guessed_letters:
+                print(
+                    f"{YELLOW}You already guessed "
+                    f"{normalized_guess.upper()}.{RESET}"
+                )
+                continue
+
+            return "letter", normalized_guess
+
+        if normalized_guess == word or normalized_guess.isalpha():
+            return "word", normalized_guess
+
+        print(f"{RED}Please enter letters only.{RESET}")
+
+
+def play_round(
+    difficulty: str,
+    max_lives: int,
+) -> tuple[bool, str]:
+    """Play one round and return whether the player won and the word."""
+
+    word = choice(words_for_difficulty(difficulty)).lower()
+    guessed_letters: set[str] = set()
+    wrong_guesses: set[str] = set()
+    lives_remaining = max_lives
+    hints_remaining = 1
+
+    while lives_remaining > 0:
+        clear_screen()
+        print_title()
+        print_game_status(
+            word,
+            guessed_letters,
+            wrong_guesses,
+            lives_remaining,
+            max_lives,
+            difficulty,
+        )
+
+        guess_type, guess = get_guess(guessed_letters, word)
+
+        if guess_type == "hint":
+            if hints_remaining == 0:
+                print(f"{YELLOW}You have already used your hint.{RESET}")
+                input("\nPress Enter to continue...")
+                continue
+
+            hint_letters = available_hint_letters(word, guessed_letters)
+
+            if hint_letters:
+                revealed_letter = choice(hint_letters)
+                guessed_letters.add(revealed_letter)
+                hints_remaining -= 1
+                print(
+                    f"{YELLOW}Hint: the word contains "
+                    f"'{revealed_letter.upper()}'.{RESET}"
+                )
+                input("\nPress Enter to continue...")
+
+        elif guess_type == "word":
+            if guess == word:
+                guessed_letters.update(
+                    character for character in word if character.isalpha()
+                )
             else:
-                print('You guessed right!')
-            letters_chosen.append(guess)
-            # print the status once the processing has been completed
-            print_status(lives_remaining, letters_chosen, word, num_lives)
-            if all(guessed in list(map(lowercase, letters_chosen)) for guessed in word.replace('-', '').lower()):
-                print('Congratulations!!! You won! The word is {}!'.format(word.upper()))
-                print('Would you like to play again [Y/N]?')
-                break
-        # If no more lives are remaining, then declare the game lost and ask about replaying
-        if lives_remaining == 0:
-            print('You lost! The word is {}!'.format(word.upper()))
-            print('Would you like to play again [Y/N]?')
+                lives_remaining -= 1
+                print(f"{RED}That is not the word. You lost one life.{RESET}")
+                input("\nPress Enter to continue...")
 
-        # Get play input for the letter
-        play_input = input()
-        # set boolean to if play == Y, since that means TRUE(play)
-        play = play_input == 'Y' or play_input == 'y'
+        elif guess in word:
+            guessed_letters.add(guess)
+            print(f"{GREEN}Correct!{RESET}")
+            input("\nPress Enter to continue...")
 
-        # check if the user guesses the word correctly or lost all lives,
-        # if yes finish the game
-    print('Goodbye!')
-    # END MAIN LOOP (OUTER PROGRAM LOOP)
+        else:
+            guessed_letters.add(guess)
+            wrong_guesses.add(guess)
+            lives_remaining -= 1
+            print(f"{RED}Incorrect. You lost one life.{RESET}")
+            input("\nPress Enter to continue...")
 
-    # ask if the user wants to continue playing,
-    # if yes start a new game, otherwise terminate the program\
+        if is_word_complete(word, guessed_letters):
+            clear_screen()
+            print_title()
+            print_game_status(
+                word,
+                guessed_letters,
+                wrong_guesses,
+                lives_remaining,
+                max_lives,
+                difficulty,
+            )
+            print(
+                f"\n{GREEN}{BOLD}You won! "
+                f"The word was {word.upper()}.{RESET}"
+            )
+            return True, word
+
+    clear_screen()
+    print_title()
+    print_game_status(
+        word,
+        guessed_letters,
+        wrong_guesses,
+        lives_remaining,
+        max_lives,
+        difficulty,
+    )
+    print(
+        f"\n{RED}{BOLD}Game over! "
+        f"The word was {word.upper()}.{RESET}"
+    )
+    return False, word
+
+
+def ask_to_play_again() -> bool:
+    """Ask whether the player wants another round."""
+
+    while True:
+        response = input(
+            f"\nWould you like to play again? "
+            f"{BOLD}[Y/N]{RESET} "
+        ).strip().lower()
+
+        if response in {"y", "yes"}:
+            return True
+
+        if response in {"n", "no"}:
+            return False
+
+        print(f"{RED}Please enter Y or N.{RESET}")
+
+
+def main() -> None:
+    """Run the Hangman application."""
+
+    wins = 0
+    losses = 0
+    current_streak = 0
+    best_streak = 0
+
+    clear_screen()
+    print_title()
+    print("Guess the hidden word before the hangman is completed.\n")
+
+    while True:
+        difficulty, max_lives = choose_difficulty()
+        won, _ = play_round(difficulty, max_lives)
+
+        if won:
+            wins += 1
+            current_streak += 1
+            best_streak = max(best_streak, current_streak)
+        else:
+            losses += 1
+            current_streak = 0
+
+        print(
+            f"\n{BOLD}Session statistics{RESET}\n"
+            f"  Wins: {GREEN}{wins}{RESET}\n"
+            f"  Losses: {RED}{losses}{RESET}\n"
+            f"  Current streak: {current_streak}\n"
+            f"  Best streak: {best_streak}"
+        )
+
+        if not ask_to_play_again():
+            break
+
+        clear_screen()
+        print_title()
+
+    print(f"\n{CYAN}Thanks for playing Python Hangman!{RESET}\n")
+
+
+if __name__ == "__main__":
+    main()
