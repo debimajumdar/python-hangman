@@ -1,15 +1,17 @@
-#Python Hangman
+# Python Hangman
 
-A terminal-based implementation of the classic Hangman game written in Python.
+A modern command-line implementation of the classic Hangman game built with Python.
 
 ## Features
 
-- Random word selection from a dictionary
-- Customizable word length
-- Adjustable number of lives
-- Tracks guessed letters
-- Play multiple rounds
-- Dictionary-based gameplay
+-  Colorful terminal interface
+- ASCII Hangman animations
+-  Three difficulty levels
+- One hint per game
+- ives system
+- Session statistics
+- Full-word guessing
+- Built-in and custom dictionaries
 
 ## Installation
 
@@ -35,15 +37,6 @@ python3 hangman.py
 - String manipulation
 - User input validation
 - Terminal application development
-
-## Future Improvements
-
-- ASCII Hangman graphics
-- Difficulty modes
-- Score tracking
-- Colored terminal output
-- Unit tests
-- GUI version with Tkinter or Pygame
 
 ## Author
 
